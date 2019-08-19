@@ -1,0 +1,59 @@
+#!/bin/bash
+
+PROJECT=`php -r "echo dirname(dirname(dirname(realpath('$0'))));"`
+STAGED_FILES_CMD=`git diff --cached --name-only --diff-filter=ACMR HEAD | grep \\\\.php`
+
+# Determine if a file list is passed
+if [ "$#" -eq 1 ]
+then
+    oIFS=$IFS
+    IFS='
+    '
+    SFILES="$1"
+    IFS=$oIFS
+fi
+SFILES=${SFILES:-$STAGED_FILES_CMD}
+
+echo "Checking PHP Lint..."
+for FILE in $SFILES
+do
+    php -l -d display_errors=0 $PROJECT/$FILE
+    if [ $? != 0 ]
+    then
+        echo "Fix the error before commit."
+        exit 1
+    fi
+    FILES="$FILES $PROJECT/$FILE"
+done
+
+if [ "$FILES" != "" ]
+then
+    echo "Running Code Sniffer. Code standard PSR2."
+    /usr/bin/phpcs --standard=PSR2 --colors --encoding=utf-8 -n -p $FILES
+    if [ $? != 0 ]
+    then
+        echo "Fix the error before commit!"
+        echo "Run"
+        echo "  /usr/bin/phpcbf --standard=PSR2 $FILES"
+        echo "for automatic fix or fix it manually."
+        exit 1
+    fi
+fi
+
+echo "Checking Responsive styles..."
+
+# Read user input, assign stdin to keyboard
+exec < /dev/tty
+
+while read -p "Checked mobile/tablet? (Y/n) " yn; do
+    case $yn in
+        [Yy] ) break;;
+        [Nn] ) echo "Please ensure the right responsive styles!"; exit 1;;
+        * ) echo "Please answer y (yes) or n (no):" && continue;
+    esac
+done
+
+exec <&-
+
+
+exit $?
